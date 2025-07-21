@@ -19,7 +19,7 @@ if not GOOGLE_MAPS_API_KEY:
 def index(request: Request):
     # テンプレートにキーを渡す
     return templates.TemplateResponse(
-        "index.html",
+        "MapTMobileMapPage.html",
         {"request": request, "google_maps_api_key": GOOGLE_MAPS_API_KEY}
     )
 
