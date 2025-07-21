@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MapTech</title>
   <style>
-    body, html { margin:0; padding:0; height:100%; }
+    body, html { margin:0; padding:0; height:100%; font-family:"Roboto", sans-serif; }
     #header {
       background:#fff;
       box-shadow:0 2px 4px rgba(0,0,0,0.1);
@@ -19,15 +19,30 @@
       justify-content:space-between;
     }
     .header-title { font-size:18px; }
-    .header-menu { list-style:none; margin:0; padding:0; display:flex; }
-    .header-menu li { margin-left:15px; }
-    .header-menu a { text-decoration:none; color:#333; }
     #toggleHeader {
       background:none;
       border:none;
       font-size:16px;
       cursor:pointer;
     }
+    #mapMenu {
+      background:#fff;
+      border-bottom:1px solid #dcdcdc;
+      position:fixed;
+      top:50px;
+      left:0;
+      width:100%;
+      height:30px;
+      overflow:hidden;
+      transition:height 0.3s;
+      z-index:999;
+    }
+    #mapMenu.expanded { height:150px; }
+    #mapMenuHeader { display:flex; align-items:center; padding:0 10px; height:30px; cursor:pointer; }
+    #mapMenuContent { display:none; padding:10px; }
+    #mapMenu.expanded #mapMenuContent { display:block; }
+    .menu-buttons { display:flex; flex-wrap:wrap; gap:10px; }
+    .mapTButton { padding:5px 10px; background:#eee; border-radius:4px; text-decoration:none; color:#333; }
     #map {
       width:100%;
       height:calc(100% - 50px);
@@ -39,13 +54,23 @@
   <div id="header">
     <div class="header-title">MapTech 地図モバイル</div>
     <button id="toggleHeader">▲</button>
-    <ul class="header-menu">
-      <li><a href="#" onclick="openSetting()">設定</a></li>
-      <li><a href="#" onclick="searchRecords()">検索</a></li>
-      <li><a href="#" onclick="showRoute()">ルート</a></li>
-      <li><a href="#" onclick="registerLead()">新規登録</a></li>
-    </ul>
   </div>
+
+  <div id="mapMenu" class="expanded">
+    <div id="mapMenuHeader">
+      <span id="hideLink">▼ メニュー</span>
+      <span id="showLink" style="display:none;">▶ メニュー</span>
+    </div>
+    <div id="mapMenuContent">
+      <div class="menu-buttons">
+        <a href="#" class="mapTButton" onclick="openSetting()">ユーザ設定</a>
+        <a href="#" class="mapTButton" onclick="searchRecords()">検索</a>
+        <a href="#" class="mapTButton" onclick="showRoute()">ルート</a>
+        <a href="#" class="mapTButton" onclick="registerLead()">登録モード</a>
+      </div>
+    </div>
+  </div>
+
   <div id="map"></div>
 
   <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&callback=initMap" async defer></script>
@@ -53,6 +78,10 @@
     document.addEventListener('DOMContentLoaded', () => {
       const header = document.getElementById('header');
       const toggleBtn = document.getElementById('toggleHeader');
+      const mapMenu = document.getElementById('mapMenu');
+      const hideLink = document.getElementById('hideLink');
+      const showLink = document.getElementById('showLink');
+
       toggleBtn.addEventListener('click', () => {
         if (header.style.display === 'none') {
           header.style.display = 'flex';
@@ -63,6 +92,18 @@
           toggleBtn.textContent = '▼';
           document.getElementById('map').style.marginTop = '0';
         }
+      });
+
+      hideLink.addEventListener('click', () => {
+        mapMenu.classList.remove('expanded');
+        hideLink.style.display = 'none';
+        showLink.style.display = 'inline';
+      });
+
+      showLink.addEventListener('click', () => {
+        mapMenu.classList.add('expanded');
+        hideLink.style.display = 'inline';
+        showLink.style.display = 'none';
       });
     });
 
