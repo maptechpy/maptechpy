@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -16,15 +16,9 @@
       z-index:1000;
       display:flex;
       align-items:center;
-      justify-content:space-between;
+      justify-content:flex-start;
     }
     .header-title { font-size:18px; }
-    #toggleHeader {
-      background:none;
-      border:none;
-      font-size:16px;
-      cursor:pointer;
-    }
     #mapMenu {
       background:#fff;
       border-bottom:1px solid #dcdcdc;
@@ -53,7 +47,6 @@
 <body>
   <div id="header">
     <div class="header-title">MapTech 地図モバイル</div>
-    <button id="toggleHeader">▲</button>
   </div>
 
   <div id="mapMenu" class="expanded">
@@ -73,26 +66,11 @@
 
   <div id="map"></div>
 
-  <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&callback=initMap" async defer></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      const header = document.getElementById('header');
-      const toggleBtn = document.getElementById('toggleHeader');
       const mapMenu = document.getElementById('mapMenu');
       const hideLink = document.getElementById('hideLink');
       const showLink = document.getElementById('showLink');
-
-      toggleBtn.addEventListener('click', () => {
-        if (header.style.display === 'none') {
-          header.style.display = 'flex';
-          toggleBtn.textContent = '▲';
-          document.getElementById('map').style.marginTop = '50px';
-        } else {
-          header.style.display = 'none';
-          toggleBtn.textContent = '▼';
-          document.getElementById('map').style.marginTop = '0';
-        }
-      });
 
       hideLink.addEventListener('click', () => {
         mapMenu.classList.remove('expanded');
@@ -107,11 +85,11 @@
       });
     });
 
-    function initMap() {
+    window.initMap = function () {
       const defaultPos = { lat: 35.681236, lng: 139.767125 };
       const map = new google.maps.Map(document.getElementById('map'), {
         center: defaultPos,
-        zoom: 13
+        zoom: 13,
       });
 
       if (navigator.geolocation) {
@@ -119,9 +97,9 @@
           (position) => {
             const userPos = {
               lat: position.coords.latitude,
-              lng: position.coords.longitude
+              lng: position.coords.longitude,
             };
-            new google.maps.Marker({ position: userPos, map: map, title: '現在地' });
+            new google.maps.Marker({ position: userPos, map, title: '現在地' });
             map.setCenter(userPos);
           },
           (error) => console.error('Geolocation error:', error)
@@ -129,23 +107,24 @@
       }
 
       fetch('/api/markers')
-        .then(res => res.json())
-        .then(data => {
-          data.forEach(m => {
+        .then((res) => res.json())
+        .then((data) => {
+          data.forEach((m) => {
             new google.maps.Marker({
               position: { lat: m.lat, lng: m.lng },
-              map: map,
-              title: m.title
+              map,
+              title: m.title,
             });
           });
         })
-        .catch(err => console.error('Markers fetch error:', err));
-    }
+        .catch((err) => console.error('Markers fetch error:', err));
+    };
 
     function openSetting() { alert('設定画面を開きます'); }
     function searchRecords() { alert('検索機能を呼び出します'); }
     function showRoute() { alert('ルート表示を実行します'); }
     function registerLead() { alert('リード登録モードに切り替えます'); }
   </script>
+  <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&callback=initMap" async defer></script>
 </body>
 </html>
