@@ -42,6 +42,94 @@
       height:calc(100% - 50px);
       margin-top:50px;
     }
+    /* Detail side panel */
+    #detailOverlay {
+      position:fixed;
+      top:0;
+      right:0;
+      bottom:0;
+      width:0;
+      overflow:hidden;
+      background:rgba(0,0,0,0.25);
+      transition:width 0.3s ease;
+      z-index:1300;
+    }
+    #detailPanel {
+      position:absolute;
+      top:0;
+      right:-480px;
+      width:480px;
+      height:100%;
+      background:#fff;
+      box-shadow:-2px 0 8px rgba(0,0,0,0.15);
+      transition:right 0.3s ease;
+      display:flex;
+      flex-direction:column;
+      padding:12px;
+      box-sizing:border-box;
+      overflow-y:auto;
+      font-family:"Roboto","Noto Sans JP",sans-serif;
+    }
+    #detailOverlay.open { width:100%; }
+    #detailOverlay.open #detailPanel { right:0; }
+    .detail-panel-header {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:12px;
+    }
+    .detail-title {
+      font-size:16px;
+      font-weight:bold;
+      color:#5a8a1f;
+    }
+    .detail-close {
+      background:none;
+      border:none;
+      font-size:20px;
+      cursor:pointer;
+    }
+    .detail-btn-row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+    .detail-ghost-btn {
+      padding:8px 14px;
+      border:1px solid #d1d5db;
+      border-radius:6px;
+      background:#f7f7f7;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.9);
+      cursor:default;
+    }
+    .detail-section {
+      border:1px solid #e5e7eb;
+      margin-bottom:12px;
+      border-radius:4px;
+      overflow:hidden;
+    }
+    .detail-section-title {
+      background:#f9fafb;
+      padding:8px 10px;
+      font-weight:bold;
+      border-bottom:1px solid #e5e7eb;
+    }
+    .detail-table { width:100%; border-collapse:collapse; }
+    .detail-table td {
+      border-top:1px solid #e5e7eb;
+      padding:8px;
+      font-size:13px;
+    }
+    .detail-table td.label {
+      background:#f5f5f5;
+      width:28%;
+      font-weight:bold;
+    }
+    .info-btn {
+      padding:6px 12px;
+      border:1px solid #d8c7a7;
+      background:#f2e4cf;
+      border-radius:4px;
+      font-size:12px;
+      cursor:pointer;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.8);
+    }
   </style>
 </head>
 <body>
@@ -65,12 +153,26 @@
   </div>
 
   <div id="map"></div>
+  <div id="mapError" style="display:none; position:fixed; top:60px; left:10px; right:10px; padding:10px; background:#fff3cd; color:#664d03; border:1px solid #ffeeba; border-radius:4px; z-index:1200;">
+    Googleマップを読み込めませんでした。APIキーが期限切れか権限不足の可能性があります。キーを再発行し、必要なAPIと課金・リファラー設定をご確認ください。
+  </div>
+
+  <div id="detailOverlay">
+    <div id="detailPanel">
+      <div class="detail-panel-header">
+        <div class="detail-title">情報詳細</div>
+        <button class="detail-close" onclick="hideDetailPanel()">×</button>
+      </div>
+      <div id="detailPanelBody"></div>
+    </div>
+  </div>
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const mapMenu = document.getElementById('mapMenu');
       const hideLink = document.getElementById('hideLink');
       const showLink = document.getElementById('showLink');
+      window.customerIconUrl = "/static/Home/FFFFFF.png";
 
       hideLink.addEventListener('click', () => {
         mapMenu.classList.remove('expanded');
@@ -90,7 +192,10 @@
       const map = new google.maps.Map(document.getElementById('map'), {
         center: defaultPos,
         zoom: 13,
+        mapId: "{{ map_id }}"
       });
+      const infoWindow = new google.maps.InfoWindow({ content: "" });
+      window.infoWindow = infoWindow;
 
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
@@ -99,7 +204,8 @@
               lat: position.coords.latitude,
               lng: position.coords.longitude,
             };
-            new google.maps.Marker({ position: userPos, map, title: '現在地' });
+            const userMarker = new google.maps.marker.AdvancedMarkerElement({ position: userPos, map, title: '現在地' });
+            userMarker.addListener('click', () => infoWindow.open({ anchor: userMarker, map }));
             map.setCenter(userPos);
           },
           (error) => console.error('Geolocation error:', error)
@@ -110,10 +216,30 @@
         .then((res) => res.json())
         .then((data) => {
           data.forEach((m) => {
-            new google.maps.Marker({
+            const marker = new google.maps.marker.AdvancedMarkerElement({
               position: { lat: m.lat, lng: m.lng },
               map,
               title: m.title,
+              content: buildMarkerContent(window.customerIconUrl, m.title),
+            });
+            marker.addListener('click', () => {
+              infoWindow.close();
+              infoWindow.setContent(renderLoading());
+              infoWindow.open({ anchor: marker, map });
+              fetch(`/api/customers/${m.id}/detail`)
+                .then((res) => {
+                  if (!res.ok) throw new Error(`Failed to load detail: ${res.status}`);
+                  return res.json();
+                })
+                .then((detail) => {
+                  window.__lastDetail = detail;
+                  const contentEl = buildInfoContent(detail);
+                  infoWindow.setContent(contentEl);
+                })
+                .catch((err) => {
+                  console.error(err);
+                  infoWindow.setContent('<div style="padding:6px;color:#c00;">読み込みに失敗しました</div>');
+                });
             });
           });
         })
@@ -124,7 +250,176 @@
     function searchRecords() { alert('検索機能を呼び出します'); }
     function showRoute() { alert('ルート表示を実行します'); }
     function registerLead() { alert('リード登録モードに切り替えます'); }
+
+    function buildMarkerContent(iconUrl, title) {
+      const img = document.createElement('img');
+      img.src = iconUrl;
+      img.alt = title || 'marker';
+      img.style.width = '36px';
+      img.style.height = '36px';
+      img.style.objectFit = 'contain';
+      return img;
+    }
+
+    function renderLoading() {
+      return '<div style="padding:6px;">読み込み中...</div>';
+    }
+
+    function buildInfoContent(detail) {
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = renderInfoContent(detail);
+      const detailBtn = wrapper.querySelector('.info-detail-btn');
+      if (detailBtn) {
+        detailBtn.addEventListener('click', () => {
+          if (window.__lastDetail) {
+            showDetailPanel(window.__lastDetail);
+          }
+        });
+      }
+      return wrapper;
+    }
+
+    function renderInfoContent(detail) {
+      if (!detail || !detail.customer) {
+        return '<div style="padding:6px;color:#c00;">データがありません</div>';
+      }
+      const c = detail.customer;
+      const visits = detail.visits || [];
+      const btnStyle =
+        "padding:6px 12px;border:1px solid #d8c7a7;background:#f2e4cf;border-radius:4px;font-size:12px;cursor:default;box-shadow:inset 0 1px 0 rgba(255,255,255,0.8);";
+      const visitList = visits.length
+        ? visits
+            .map(
+              (v) =>
+                `<div style="margin:4px 0;">${formatDt(v.start_at)} ${escapeHtml(v.result || '')} ${escapeHtml(
+                  v.name || ''
+                )}</div>`
+            )
+            .join("")
+        : '<div style="margin-top:4px;">訪問予定なし</div>';
+
+      return `
+        <div style="max-width:260px; padding:8px 10px; font-family:'Noto Sans JP', sans-serif; color:#333;">
+          <div style="display:flex; gap:6px; margin-bottom:8px;">
+            <button style="${btnStyle}">入室</button>
+            <button style="${btnStyle}" class="info-detail-btn">詳細</button>
+            <button style="${btnStyle}">ルート案内</button>
+          </div>
+          <div style="font-size:13px; margin-bottom:4px;">
+            <span style="font-weight:bold;">顧客名：</span>
+            <span style="color:#1a0dab;">${escapeHtml(c.name || '不明')}</span>
+          </div>
+          <div style="font-size:13px; margin-bottom:4px;">
+            <span style="font-weight:bold;">住所：</span>
+            <span style="color:#219653;">${escapeHtml(c.address || '')}</span>
+          </div>
+          <div style="font-size:13px; margin-bottom:6px;">
+            <span style="font-weight:bold;">状況：</span>
+            <span>${escapeHtml(c.visit_status || '')}</span>
+          </div>
+          <div style="font-size:13px; font-weight:bold; margin-top:6px;">訪問情報</div>
+          <div style="margin-top:4px; border-top:1px solid #888; padding-top:6px; font-size:12px;">
+            ${visitList}
+          </div>
+        </div>
+      `;
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function formatDt(value) {
+      if (!value) return '';
+      try {
+        const d = new Date(value);
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      } catch {
+        return value;
+      }
+    }
+
+    function pad(n) {
+      return n.toString().padStart(2, '0');
+    }
+
+    function showDetailPanel(detail) {
+      const overlay = document.getElementById('detailOverlay');
+      const body = document.getElementById('detailPanelBody');
+      body.innerHTML = renderDetailPanel(detail);
+      overlay.classList.add('open');
+    }
+
+    function hideDetailPanel() {
+      document.getElementById('detailOverlay').classList.remove('open');
+    }
+
+    function renderDetailPanel(detail) {
+      if (!detail || !detail.customer) {
+        return '<div>データがありません</div>';
+      }
+      const c = detail.customer;
+      const visits = detail.visits || [];
+      const firstVisit = visits[0];
+      return `
+        <div>
+          <div class="detail-btn-row">
+            <button class="detail-ghost-btn">訪問入室</button>
+            <button class="detail-ghost-btn">訪問登録</button>
+            <button class="detail-ghost-btn">ルート案内</button>
+            <button class="detail-ghost-btn">編集</button>
+          </div>
+          <div class="detail-section">
+            <div class="detail-section-title">顧客情報</div>
+            <table class="detail-table">
+              <tr><td class="label">顧客名</td><td>${escapeHtml(c.name || '')}</td></tr>
+              <tr><td class="label">住所</td><td>${escapeHtml(c.address || '')}</td></tr>
+              <tr><td class="label">ステータス</td><td>${escapeHtml(c.visit_status || '')}</td></tr>
+              <tr><td class="label">顧客属性</td><td>${escapeHtml(c.segment || '')}</td></tr>
+            </table>
+          </div>
+          <div class="detail-section">
+            <div class="detail-section-title">訪問予定</div>
+            ${renderVisitTables(visits, c.visit_status)}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderVisitTables(visits, customerStatus) {
+      if (!visits || visits.length === 0) {
+        return '<div style="padding:8px;">訪問予定なし</div>';
+      }
+      return visits
+        .map((v) => {
+          const start = formatDt(v.start_at);
+          const end = formatDt(v.end_at);
+          return `
+            <table class="detail-table" style="margin-bottom:8px;">
+              <tr><td class="label">訪問予定名</td><td>${escapeHtml(v.name || '')}</td></tr>
+              <tr><td class="label">開始/終了</td><td>${start} ～ ${end}</td></tr>
+              <tr><td class="label">状況</td><td>${escapeHtml(customerStatus || '')}</td></tr>
+              <tr><td class="label">訪問結果</td><td>${escapeHtml(v.result || '')}</td></tr>
+              <tr><td class="label">詳細</td><td>${escapeHtml(v.detail || '')}</td></tr>
+            </table>
+          `;
+        })
+        .join('');
+    }
+
+    // 認証系エラー(ExpiredKeyMapError 等)で呼ばれる
+    window.gm_authFailure = function () {
+      const errBox = document.getElementById('mapError');
+      if (errBox) errBox.style.display = 'block';
+      console.error('Google Maps authentication failed (e.g., expired key).');
+    };
   </script>
-  <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&callback=initMap" async defer></script>
+  <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&callback=initMap&libraries=marker&map_ids={{ map_id }}" async defer></script>
 </body>
 </html>
