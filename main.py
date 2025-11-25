@@ -1,7 +1,7 @@
 ﻿from typing import Generator, List, Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Request, status
-from fastapi.responses import HTMLResponse
+from fastapi import Depends, FastAPI, Form, HTTPException, Request, status
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -58,6 +58,27 @@ class VisitSchedule(Base):
     customer = relationship("Customer", back_populates="visits")
 
 
+class MaptechUser(Base):
+    __tablename__ = "maptech_users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, nullable=False, unique=True)
+    password = Column(String, nullable=False)
+    transport_method = Column(String, nullable=True)
+    route_origin = Column(String, nullable=True)
+    saved_search_conditions = Column(String, nullable=True)
+    marker_cluster_max_zoom = Column(Integer, nullable=True)
+    zoom_setting = Column(Integer, nullable=True)
+    origin_lng = Column(Float, nullable=True)
+    origin_lat = Column(Float, nullable=True)
+    nearby_distance_km = Column(Float, nullable=True)
+    map_display_type_main = Column(String, nullable=True)
+    map_display_type_adjust = Column(String, nullable=True)
+    toll_usage = Column(String, nullable=True)
+    visit_status = Column(String, nullable=True)
+    past_visit_edit = Column(String, nullable=True)
+
+
 def get_db() -> Generator:
     db = SessionLocal()
     try:
@@ -103,6 +124,26 @@ def seed_if_empty() -> None:
             )
             db.add(visit)
             db.commit()
+        if db.query(MaptechUser).count() == 0:
+            demo_user = MaptechUser(
+                username="demo",
+                password="demo",
+                transport_method="徒歩",
+                route_origin="東京駅",
+                saved_search_conditions="",
+                marker_cluster_max_zoom=12,
+                zoom_setting=13,
+                origin_lng=139.767125,
+                origin_lat=35.681236,
+                nearby_distance_km=5,
+                map_display_type_main="標準",
+                map_display_type_adjust="登録・調整",
+                toll_usage="利用する",
+                visit_status="未訪問",
+                past_visit_edit="不可",
+            )
+            db.add(demo_user)
+            db.commit()
     finally:
         db.close()
 
@@ -146,6 +187,15 @@ class VisitRead(BaseModel):
         from_attributes = True
 
 
+class SearchFilter(BaseModel):
+    field: str
+    value: str
+
+
+class SearchRequest(BaseModel):
+    filters: List[SearchFilter] = []
+
+
 def _parse_datetime(value: str):
     """Parse ISO8601 string to datetime; raises HTTP 400 on failure."""
     from datetime import datetime
@@ -156,12 +206,42 @@ def _parse_datetime(value: str):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid datetime: {value}") from exc
 
 
+def _get_current_user(request: Request, db):
+    username = request.cookies.get("auth_user")
+    if not username:
+        return None
+    return db.query(MaptechUser).filter(MaptechUser.username == username).first()
+
+
 @app.get("/", response_class=HTMLResponse)
-def index(request: Request, api_key: str | None = None):
+def login_page(request: Request):
+    error = request.query_params.get("error")
+    msg = "ユーザー名またはパスワードが違います" if error else ""
+    return templates.TemplateResponse("LoginPage.html", {"request": request, "error_message": msg})
+
+
+@app.get("/LoginPage", response_class=HTMLResponse)
+def login_page_alias(request: Request):
+    error = request.query_params.get("error")
+    msg = "ユーザー名またはパスワードが違います" if error else ""
+    return templates.TemplateResponse("LoginPage.html", {"request": request, "error_message": msg})
+
+
+@app.get("/MobileMapPage", response_class=HTMLResponse)
+def mobile_map_page(request: Request, api_key: str | None = None):
     """
-    Serve the map page. Optional query param ?api_key=... can override the default key
+    Serve the mobile map page. Optional query param ?api_key=... can override the default key
     (handy for verifying keys). Sanitization avoids hidden BOM/whitespace issues.
     """
+    username = request.cookies.get("auth_user")
+    if not username:
+        return RedirectResponse(url="/LoginPage", status_code=303)
+    # Simple existence check for logged-in user
+    with SessionLocal() as db:
+        exists = db.query(MaptechUser.id).filter(MaptechUser.username == username).first()
+        if not exists:
+            return RedirectResponse(url="/LoginPage", status_code=303)
+
     key_to_use = _clean_api_key(api_key) if api_key else DEFAULT_GOOGLE_MAPS_API_KEY
     if not key_to_use:
         raise HTTPException(status_code=500, detail="Google Maps API key is missing.")
@@ -169,6 +249,20 @@ def index(request: Request, api_key: str | None = None):
         "MapTMobileMapPage.html",
         {"request": request, "google_maps_api_key": key_to_use, "map_id": DEFAULT_MAP_ID},
     )
+
+
+@app.post("/login")
+def login(username: str = Form(...), password: str = Form(...), db=Depends(get_db)):
+    user = (
+        db.query(MaptechUser)
+        .filter(MaptechUser.username == username, MaptechUser.password == password)
+        .first()
+    )
+    if not user:
+        return RedirectResponse(url="/LoginPage?error=1", status_code=303)
+    resp = RedirectResponse(url="/MobileMapPage", status_code=303)
+    resp.set_cookie("auth_user", username, httponly=True, max_age=60 * 60 * 8)
+    return resp
 
 
 @app.get("/api/markers")
@@ -214,6 +308,41 @@ def create_visit(payload: VisitCreate, db=Depends(get_db)):
     db.commit()
     db.refresh(visit)
     return visit
+
+
+@app.get("/api/search/fields")
+def get_search_fields():
+    """Expose searchable fields for customers (visits excluded per request)."""
+    customer_fields = [col.name for col in Customer.__table__.columns]
+    return {"customers": customer_fields}
+
+
+@app.post("/api/search/customers")
+def search_customers(payload: SearchRequest, db=Depends(get_db)):
+    """Search customers by provided filters; supports partial match for text, exact for numbers."""
+    from sqlalchemy import String
+
+    allowed = {col.name: getattr(Customer, col.name) for col in Customer.__table__.columns}
+    query = db.query(Customer)
+    for f in payload.filters or []:
+        col = allowed.get(f.field)
+        if not col or f.value is None or f.value == "":
+            continue
+        # Match type to decide filter
+        if isinstance(col.type, (Float, Integer)):
+            try:
+                num = float(f.value) if isinstance(col.type, Float) else int(f.value)
+            except Exception:
+                continue
+            query = query.filter(col == num)
+        else:
+            query = query.filter(col.ilike(f"%{f.value}%"))
+
+    customers = query.all()
+    return [
+        {"id": c.id, "title": c.name, "lat": c.latitude, "lng": c.longitude, "address": c.address}
+        for c in customers
+    ]
 
 
 @app.get("/api/customers/{customer_id}/detail")

@@ -8,11 +8,24 @@ Usage:
   python -c "from init_db import init_db; init_db(seed=False)"
 """
 
+from sqlalchemy import text
+
 from main import Base, engine, seed_if_empty
+
+
+def ensure_password_column() -> None:
+    """Add password column to maptech_users if it doesn't exist (for existing DB)."""
+    alter_sql = """
+    ALTER TABLE maptech_users
+    ADD COLUMN IF NOT EXISTS password VARCHAR;
+    """
+    with engine.begin() as conn:
+        conn.execute(text(alter_sql))
 
 
 def init_db(seed: bool = True) -> None:
     Base.metadata.create_all(bind=engine)
+    ensure_password_column()
     if seed:
         seed_if_empty()
 
