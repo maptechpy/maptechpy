@@ -1,0 +1,674 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理者設定 - MapTech</title>
+  <style>
+    :root {
+      --blue: #1f6feb;
+      --light: #f8f9fb;
+      --border: #d6d9de;
+      --text: #1f2933;
+      --muted: #5f6c80;
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"Roboto","Noto Sans JP",sans-serif; background:#f5f7fb; color:var(--text); }
+    header { background:#111827; color:#fff; padding:14px 18px; font-weight:bold; }
+    .page { max-width:1080px; margin:18px auto; }
+    .tabs { display:flex; gap:4px; padding:0 12px; background:var(--light); border:1px solid var(--border); border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.06); overflow-x:auto; }
+    .tab { position:relative; background:transparent; border:none; padding:12px 16px; font-size:14px; color:var(--muted); cursor:pointer; white-space:nowrap; }
+    .tab.active { color:var(--text); font-weight:600; }
+    .tab.active::after { content:""; position:absolute; left:12px; right:12px; bottom:0; height:3px; background:var(--blue); border-radius:999px; }
+    .tab .arrow { margin-left:6px; font-size:12px; color:var(--muted); }
+    .panel { margin-top:16px; background:#fff; border:1px solid var(--border); border-radius:10px; padding:24px; box-shadow:0 6px 20px rgba(0,0,0,0.05); }
+    .panel.hidden { display:none; }
+    h1 { margin:0 0 8px; font-size:20px; }
+    p { margin:0 0 12px; color:var(--muted); }
+    .alert { margin-top:12px; padding:12px 14px; border-radius:8px; font-size:14px; }
+    .alert.success { background:#ecfdf3; color:#166534; border:1px solid #bbf7d0; }
+    .alert.error { background:#fef2f2; color:#b91c1c; border:1px solid #fecdd3; }
+    form { margin-top:16px; display:grid; gap:14px; }
+    .field { display:flex; flex-direction:column; gap:6px; }
+    label { font-weight:600; color:var(--text); font-size:14px; }
+    input[type="number"], select { padding:10px 12px; border:1px solid var(--border); border-radius:6px; font-size:14px; }
+    .inline { display:flex; flex-direction:row; align-items:center; justify-content:flex-start; gap:8px; }
+    .inline label { margin:0; }
+    .inline input[type="checkbox"] { width:16px; height:16px; }
+    .actions { margin-top:6px; }
+    .btn-primary { background:var(--blue); color:#fff; border:none; border-radius:6px; padding:12px 16px; font-size:15px; font-weight:600; cursor:pointer; }
+    .btn-ghost { border:1px solid #d1d5db; background:#fff; color:#374151; border-radius:6px; padding:10px 14px; font-size:14px; cursor:pointer; }
+    .btn-ghost.danger { color:#b91c1c; border-color:#fca5a5; }
+    .modal-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; margin-bottom:12px; }
+    .modal-actions button { padding:8px 12px; font-size:14px; }
+    .table-wrapper { margin-top:16px; overflow-x:auto; }
+    table.marker-table { border-collapse:collapse; width:100%; background:#fdfbfd; font-size:14px; }
+    table.marker-table th, table.marker-table td { border:1px solid #d9d2dc; padding:8px 10px; text-align:left; }
+    table.marker-table th { background:#efe8ef; font-weight:700; color:#3c3346; }
+    table.marker-table td input, table.marker-table td select { width:100%; box-sizing:border-box; padding:6px 8px; border:1px solid #d9d2dc; border-radius:4px; font-size:13px; }
+    .color-flex { display:flex; align-items:center; gap:8px; }
+    .color-chip { width:36px; height:32px; border:1px solid #d9d2dc; border-radius:4px; cursor:pointer; background:#ccc; }
+    .color-flex input[type="text"] { width:110px; }
+    .palette { position:fixed; display:none; background:#fff; border:1px solid #d1d5db; box-shadow:0 8px 24px rgba(0,0,0,0.12); padding:8px; width:300px; max-height:240px; overflow:auto; z-index:9999; }
+    .palette-grid { display:grid; grid-template-columns:repeat(10, 1fr); gap:6px; }
+    .palette-swatch { width:25px; height:25px; border:1px solid #e5e7eb; cursor:pointer; }
+    .palette-swatch:hover { outline:2px solid #2563eb; outline-offset:1px; }
+    .subtabs { display:flex; border:1px solid #d9d2dc; border-radius:6px 6px 0 0; overflow:hidden; box-shadow:0 2px 6px rgba(0,0,0,0.06); }
+    .subtab { flex:1; background:#f4f2f5; border:none; padding:12px 14px; font-size:14px; color:#4b4455; cursor:pointer; text-align:center; border-right:1px solid #d9d2dc; }
+    .subtab:last-child { border-right:none; }
+    .subtab.active { background:#dcd3dd; font-weight:700; color:#2f2937; }
+    .subpanel { padding:18px; background:#f4eef4; border:1px solid #d9d2dc; border-top:none; border-radius:0 0 8px 8px; color:#3c3346; min-height:120px; }
+    .subpanel.hidden { display:none; }
+  </style>
+</head>
+<body>
+  <header>管理者設定</header>
+  <div class="page">
+    <nav class="tabs" aria-label="設定タブ">
+      <button class="tab active" type="button" data-panel="panel-maptech">MapTech設定</button>
+      <button class="tab" type="button" data-panel="panel-master">MapTechマスタ設定</button>
+      <button class="tab" type="button">MapTechバッチ設定</button>
+      <button class="tab" type="button">MapTech自動化設定<span class="arrow">▼</span></button>
+      <button class="tab" type="button">MapTechユーザ<span class="arrow">▼</span></button>
+    </nav>
+    <section class="panel" id="panel-maptech" data-panel>
+      <h1>MapTech設定</h1>
+      <p>管理者ユーザー: {{ admin_username }}</p>
+      {% if success_message %}<div class="alert success">{{ success_message }}</div>{% endif %}
+      {% if error_message %}<div class="alert error">{{ error_message }}</div>{% endif %}
+      <form method="post" action="/AdminSettings">
+        <div class="field">
+          <label for="search_limit">検索件数上限</label>
+          <input id="search_limit" type="number" name="search_limit" min="1" step="1" value="{{ setting.search_limit or '' }}" />
+        </div>
+        <div class="field">
+          <label for="nearby_distance_km">周辺座標取得距離（Km）</label>
+          <input id="nearby_distance_km" type="number" name="nearby_distance_km" min="0" step="0.1" value="{{ setting.nearby_distance_km or '' }}" />
+        </div>
+        <div class="field">
+          <label for="entry_exit_interval">入退出時間幅の設定</label>
+          <select id="entry_exit_interval" name="entry_exit_interval">
+            <option value="10分間隔" {% if setting.entry_exit_interval == "10分間隔" %}selected{% endif %}>10分間隔</option>
+            <option value="15分間隔" {% if setting.entry_exit_interval == "15分間隔" %}selected{% endif %}>15分間隔</option>
+            <option value="30分間隔" {% if setting.entry_exit_interval == "30分間隔" %}selected{% endif %}>30分間隔</option>
+          </select>
+        </div>
+        <div class="field inline">
+          <label for="enable_area">エリアの有効化</label>
+          <input id="enable_area" type="checkbox" name="enable_area" {% if setting.enable_area %}checked{% endif %} />
+        </div>
+        <div class="field inline">
+          <label for="enable_group">所属グループの有効化</label>
+          <input id="enable_group" type="checkbox" name="enable_group" {% if setting.enable_group %}checked{% endif %} />
+        </div>
+        <div class="actions"><button class="btn-primary" type="submit">保存</button></div>
+      </form>
+    </section>
+
+    <section class="panel hidden" id="panel-master" data-panel>
+      <h1>MapTechマスタ設定</h1>
+      <div class="subtabs" role="tablist" aria-label="マスタ設定サブタブ">
+        <button class="subtab active" type="button" data-subpanel="sub-marker">マーカーカラー条件</button>
+        <button class="subtab" type="button" data-subpanel="sub-user">ユーザ管理</button>
+        <button class="subtab" type="button" data-subpanel="sub-area">エリア設定</button>
+        <button class="subtab" type="button" data-subpanel="sub-group">所属グループ設定</button>
+      </div>
+      <div class="subpanel" id="sub-marker" data-subpanel>
+        <div class="table-wrapper">
+          <table class="marker-table">
+            <thead>
+              <tr>
+                <th style="width:70px;">優先度</th>
+                <th style="width:120px;">対象</th>
+                <th style="width:140px;">条件項目</th>
+                <th style="width:180px;">判定値</th>
+                <th style="width:140px;">判定条件</th>
+                <th style="width:140px;">色</th>
+                <th style="width:160px;">マーカースタイル</th>
+                <th style="width:70px;"></th>
+              </tr>
+            </thead>
+            <tbody id="marker-table-body"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:12px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+          <div id="marker-message" class="alert" style="display:none;"></div>
+          <div style="display:flex; gap:8px; margin-left:auto;">
+            <button id="add-marker-row" class="btn-ghost" type="button">行を追加</button>
+            <button id="save-marker" class="btn-primary" type="button">保存</button>
+          </div>
+        </div>
+      </div>
+      <div class="subpanel hidden" id="sub-user" data-subpanel>
+        <div class="table-wrapper">
+          <table class="marker-table">
+            <thead>
+              <tr>
+                <th style="width:80px;">詳細</th>
+                <th style="width:70px;">ID</th>
+                <th style="width:200px;">ユーザー名</th>
+                <th style="width:200px;">パスワード</th>
+                <th style="width:70px;"></th>
+              </tr>
+            </thead>
+            <tbody id="user-table-body"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:12px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+          <div id="user-message" class="alert" style="display:none;"></div>
+          <div style="display:flex; gap:8px; margin-left:auto;">
+            <button id="add-user-row" class="btn-ghost" type="button">行を追加</button>
+            <button id="save-user" class="btn-primary" type="button">保存</button>
+          </div>
+        </div>
+      </div>
+      <div class="subpanel hidden" id="sub-area" data-subpanel>エリア設定</div>
+      <div class="subpanel hidden" id="sub-group" data-subpanel>所属グループ設定</div>
+    </section>
+  </div>
+
+  <div id="palette" class="palette" role="listbox" aria-label="色の選択">
+    <div class="palette-grid" id="palette-grid"></div>
+  </div>
+
+  <div id="user-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; z-index:10000; align-items:center; justify-content:center; background:rgba(0,0,0,0.45);">
+    <div style="background:#fff; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,0.18); width:520px; max-width:90vw; max-height:90vh; padding:20px; position:relative; overflow:hidden;">
+      <h2 style="margin:0 0 12px; font-size:18px;">ユーザ詳細</h2>
+      <div style="overflow:auto; max-height:calc(90vh - 110px); padding-right:4px;">
+        <form id="user-modal-form" style="display:grid; gap:10px;">
+          <div class="field">
+            <label>ID</label>
+            <input id="u-id" type="text" readonly />
+          </div>
+        <div class="field">
+          <label>ユーザー名</label>
+          <input id="u-username" type="text" />
+        </div>
+        <div class="field">
+          <label>パスワード</label>
+          <input id="u-password" type="text" />
+        </div>
+        <div class="field">
+          <label>移動手段</label>
+          <select id="u-transport"></select>
+        </div>
+        <div class="field">
+          <label>ルート起点</label>
+          <input id="u-route" type="text" />
+        </div>
+        <div class="field">
+          <label>保存検索条件</label>
+          <input id="u-saved" type="text" />
+        </div>
+        <div class="field">
+          <label>クラスタ最大ズーム</label>
+          <input id="u-cluster" type="number" />
+        </div>
+        <div class="field">
+          <label>ズーム設定</label>
+          <select id="u-zoom"></select>
+        </div>
+        <div class="field">
+          <label>起点経度</label>
+          <input id="u-lng" type="number" step="0.000001" />
+        </div>
+        <div class="field">
+          <label>起点緯度</label>
+          <input id="u-lat" type="number" step="0.000001" />
+        </div>
+        <div class="field">
+          <label>周辺距離(km)</label>
+          <input id="u-nearby" type="number" step="0.1" />
+        </div>
+        <div class="field">
+          <label>メイン表示タイプ</label>
+          <select id="u-main"></select>
+        </div>
+        <div class="field">
+          <label>調整表示タイプ</label>
+          <select id="u-adjust"></select>
+        </div>
+        <div class="field">
+          <label>有料道路利用</label>
+          <select id="u-toll"></select>
+        </div>
+        <div class="field">
+          <label>訪問ステータス</label>
+          <select id="u-visit"></select>
+        </div>
+        <div class="field">
+          <label>過去訪問編集</label>
+          <select id="u-past"></select>
+        </div>
+        </form>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost" id="user-modal-cancel">キャンセル</button>
+        <button type="button" class="btn-primary" id="user-modal-save">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const panelButtons = Array.from(document.querySelectorAll('.tab[data-panel]'));
+      const panels = Array.from(document.querySelectorAll('[data-panel]'));
+      panelButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          panelButtons.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          const target = btn.getAttribute('data-panel');
+          panels.forEach(p => p.classList.toggle('hidden', p.id !== target));
+        });
+      });
+      const subButtons = Array.from(document.querySelectorAll('.subtab[data-subpanel]'));
+      const subPanels = Array.from(document.querySelectorAll('.subpanel[data-subpanel]'));
+      subButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          subButtons.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          const target = btn.getAttribute('data-subpanel');
+          subPanels.forEach(p => p.classList.toggle('hidden', p.id !== target));
+        });
+      });
+
+      const paletteColors = [
+        "#000000","#333333","#666666","#999999","#cccccc","#ffffff",
+        "#ff3300","#cc3300","#ff6633","#993300","#cc6633","#ff9966",
+        "#ff6600","#663300","#996633","#cc9966","#cc6600","#ffcc99",
+        "#ff9933","#ff9900","#996600","#cc9933","#ffcc66","#cc9900",
+        "#ffcc33","#ffcc00","#333300","#666633","#666600","#999966",
+        "#999933","#999900","#cccc99","#cccc66","#cccc33","#cccc00",
+        "#ffffcc","#ffff99","#ffff66","#ffff33","#ffff00","#ccff00",
+        "#99cc00","#ccff33","#669900","#99cc33","#ccff66","#99ff00",
+        "#336600","#669933","#99cc66","#66cc00","#ccff99","#99ff33",
+        "#66ff00","#339900","#66cc33","#99ff66","#33cc00","#66ff33",
+        "#33ff00","#003300","#336633","#006600","#669966","#339933",
+        "#009900","#99cc99","#66cc66","#33cc33","#00cc00","#ccffcc",
+        "#99ff99","#66ff66","#33ff33","#00ff00","#00ff33","#00cc33",
+        "#33ff66","#009933","#33cc66","#66ff99","#00ff66","#006633",
+        "#339966","#66cc99","#00cc66","#99ffcc","#33ff99","#00ff99",
+        "#009966","#33cc99","#66ffcc","#00cc99","#33ffcc","#00ffcc",
+        "#003333","#336666","#006666","#669999","#339999","#009999",
+        "#99cccc","#66cccc","#33cccc","#00cccc","#ccffff","#99ffff",
+        "#66ffff","#33ffff","#00ffff","#00ccff","#0099cc","#33ccff",
+        "#006699","#3399cc","#66ccff","#0099ff","#003366","#336699",
+        "#6699cc","#0066cc","#99ccff","#3399ff","#0066ff","#003399",
+        "#3366cc","#6699ff","#0033cc","#3366ff","#0033ff","#000033",
+        "#333366","#000066","#666699","#333399","#000099","#9999cc",
+        "#6666cc","#3333cc","#0000cc","#ccccff","#9999ff","#6666ff",
+        "#3333ff","#0000ff","#3300ff","#3300cc","#6633ff","#330099",
+        "#6633cc","#9966ff","#6600ff","#330066","#663399","#9966cc",
+        "#6600cc","#cc99ff","#9933ff","#9900ff","#660099","#9933cc",
+        "#cc66ff","#9900cc","#cc33ff","#cc00ff","#330033","#663366",
+        "#660066","#996699","#993399","#990099","#cc99cc","#cc66cc",
+        "#cc33cc","#cc00cc","#ffccff","#ff99ff","#ff66ff","#ff33ff",
+        "#ff00ff","#ff00cc","#cc0099","#ff33cc","#990066","#cc3399",
+        "#ff66cc","#ff0099","#660033","#993366","#cc6699","#cc0066",
+        "#ff99cc","#ff3399","#ff0066","#990033","#cc3366","#ff6699",
+        "#cc0033","#ff3366","#ff0033","#330000","#663333","#660000",
+        "#996666","#993333","#990000","#cc9999","#cc6666","#cc3333",
+        "#cc0000","#ffcccc","#ff9999","#ff6666","#ff3333","#ff0000"
+      ];
+
+      const palette = document.getElementById('palette');
+      const paletteGrid = document.getElementById('palette-grid');
+      let paletteSetter = null;
+
+      const hidePalette = () => { palette.style.display = 'none'; paletteSetter = null; };
+      document.addEventListener('click', (e) => {
+        if (palette.style.display === 'none') return;
+        if (!palette.contains(e.target) && !(e.target.classList && e.target.classList.contains('color-chip'))) {
+          hidePalette();
+        }
+      });
+
+      paletteColors.forEach(c => {
+        const sw = document.createElement('div');
+        sw.className = 'palette-swatch';
+        sw.style.background = c;
+        sw.addEventListener('click', () => {
+          if (paletteSetter) paletteSetter(c);
+          hidePalette();
+        });
+        paletteGrid.appendChild(sw);
+      });
+
+      const showPalette = (chipEl, setter) => {
+        paletteSetter = setter;
+        const rect = chipEl.getBoundingClientRect();
+        palette.style.display = 'block';
+        const margin = 8;
+        const pw = palette.offsetWidth || 300;
+        const ph = palette.offsetHeight || 200;
+        let left = Math.min(Math.max(rect.left, margin), window.innerWidth - pw - margin);
+        let top = rect.bottom + 6;
+        if (top + ph > window.innerHeight - margin) {
+          top = rect.top - ph - 6;
+        }
+        if (top < margin) top = margin;
+        palette.style.left = `${left}px`;
+        palette.style.top = `${top}px`;
+      };
+
+      const markerData = {{ marker_colors | tojson | safe }};
+      const userData = {{ maptech_users | tojson | safe }};
+      const tbody = document.getElementById('marker-table-body');
+      const messageBox = document.getElementById('marker-message');
+      const addBtn = document.getElementById('add-marker-row');
+      const saveBtn = document.getElementById('save-marker');
+      const userTbody = document.getElementById('user-table-body');
+      const userAddBtn = document.getElementById('add-user-row');
+      const userSaveBtn = document.getElementById('save-user');
+      const userMsg = document.getElementById('user-message');
+      const userModal = document.getElementById('user-modal');
+      const userModalForm = document.getElementById('user-modal-form');
+      const userModalSave = document.getElementById('user-modal-save');
+      const userModalCancel = document.getElementById('user-modal-cancel');
+
+      if (tbody && addBtn && saveBtn) {
+        const targetOptions = ["顧客情報", "訪問予定"];
+        const fieldOptionsByTarget = {
+          "顧客情報": ["name", "address", "latitude", "longitude", "visit_status", "segment"],
+          "訪問予定": ["name", "start_at", "end_at", "result", "detail", "customer_id"],
+        };
+        const styleOptions = ["家", "星", "車", "×", "工事"];
+        const conditionOptions = ["含む", "一致する", "含まない", "一致しない"];
+
+        const showMessage = (text, type) => {
+          messageBox.textContent = text;
+          messageBox.classList.remove('success', 'error');
+          messageBox.classList.add(type === 'error' ? 'error' : 'success');
+          messageBox.style.display = text ? 'block' : 'none';
+        };
+
+        const updatePriorities = () => {
+          Array.from(tbody.querySelectorAll('tr')).forEach((tr, idx) => {
+            const cell = tr.querySelector('.priority-cell');
+            if (cell) cell.textContent = idx + 1;
+          });
+        };
+
+        const createSelect = (options, value) => {
+          const sel = document.createElement('select');
+          options.forEach(opt => {
+            const o = document.createElement('option');
+            o.value = opt; o.textContent = opt;
+            if (opt === value) o.selected = true;
+            sel.appendChild(o);
+          });
+          return sel;
+        };
+
+        const createRow = (row = {}) => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td class="priority-cell"></td>
+            <td></td>
+            <td></td>
+            <td><input type="text" value="${row.match_value ?? ''}" /></td>
+            <td></td>
+            <td>
+              <div class="color-flex">
+                <button type="button" class="color-chip" style="background:${row.color || '#cccccc'}"></button>
+                <input type="text" value="${row.color || '#cccccc'}" />
+              </div>
+            </td>
+            <td></td>
+            <td style="text-align:center;"><button type="button" class="btn-ghost danger">削除</button></td>
+          `;
+          const targetCell = tr.children[1];
+          const fieldCell = tr.children[2];
+          const conditionCell = tr.children[4];
+          const styleCell = tr.children[6];
+
+          const targetSel = createSelect(targetOptions, row.target || targetOptions[0]);
+          targetCell.appendChild(targetSel);
+
+          const makeFieldSelect = (tVal, currentVal) =>
+            createSelect(fieldOptionsByTarget[tVal] || [], currentVal || (fieldOptionsByTarget[tVal] || [])[0] || "");
+          let fieldSel = makeFieldSelect(targetSel.value, row.field_name);
+          fieldCell.appendChild(fieldSel);
+          targetSel.addEventListener("change", () => {
+            const newSel = makeFieldSelect(targetSel.value, "");
+            fieldCell.replaceChild(newSel, fieldSel);
+            fieldSel = newSel;
+          });
+
+          conditionCell.appendChild(createSelect(conditionOptions, row.match_condition || conditionOptions[0]));
+          const styleSel = createSelect(styleOptions, row.marker_style || "家");
+          styleCell.appendChild(styleSel);
+
+          const colorChip = tr.querySelector('.color-chip');
+          const colorText = tr.querySelector('.color-flex input[type="text"]');
+          const setColor = (val) => {
+            const v = val.startsWith('#') ? val : '#' + val;
+            colorChip.style.background = v;
+            colorText.value = v;
+          };
+          colorChip.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showPalette(colorChip, setColor);
+          });
+          colorText.addEventListener('input', () => {
+            if (/^#?[0-9a-fA-F]{3,6}$/.test(colorText.value)) {
+              setColor(colorText.value);
+            }
+          });
+
+          tr.querySelector('.btn-ghost.danger').addEventListener('click', () => {
+            tr.remove();
+            updatePriorities();
+          });
+          return tr;
+        };
+
+        const renderRows = (data = []) => {
+          tbody.innerHTML = '';
+          (data.length ? data : [{}]).forEach(d => tbody.appendChild(createRow(d)));
+          updatePriorities();
+        };
+
+        addBtn.addEventListener('click', () => {
+          tbody.appendChild(createRow({}));
+          updatePriorities();
+        });
+
+        saveBtn.addEventListener('click', async () => {
+          showMessage('', 'success');
+          const rows = Array.from(tbody.querySelectorAll('tr')).map((tr, idx) => {
+            const [ , targetCell, fieldCell, valueCell, conditionCell, colorCell, styleCell ] = tr.children;
+            return {
+              priority: idx + 1,
+              target: targetCell.querySelector('select')?.value || "",
+              field_name: fieldCell.querySelector('select')?.value || "",
+              match_value: valueCell.querySelector('input')?.value || "",
+              match_condition: conditionCell.querySelector('select')?.value || "",
+              color: colorCell.querySelector('input[type="text"]')?.value || "",
+              marker_style: styleCell.querySelector('select')?.value || "",
+            };
+          });
+
+          try {
+            const res = await fetch('/admin/marker-colors', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ rows }),
+            });
+            if (!res.ok) throw new Error('保存に失敗しました');
+            showMessage('保存しました', 'success');
+          } catch (err) {
+            showMessage(err.message || '保存に失敗しました', 'error');
+          }
+        });
+
+        renderRows(markerData);
+      }
+
+      // User management
+      if (userTbody && userAddBtn && userSaveBtn) {
+        const userFields = [
+          "transport_method",
+          "route_origin",
+          "saved_search_conditions",
+          "marker_cluster_max_zoom",
+          "zoom_setting",
+          "origin_lng",
+          "origin_lat",
+          "nearby_distance_km",
+          "map_display_type_main",
+          "map_display_type_adjust",
+          "toll_usage",
+          "visit_status",
+          "past_visit_edit",
+        ];
+
+        const userShowMessage = (text, type) => {
+          userMsg.textContent = text;
+          userMsg.classList.remove('success', 'error');
+          userMsg.classList.add(type === 'error' ? 'error' : 'success');
+          userMsg.style.display = text ? 'block' : 'none';
+        };
+
+        const createUserRow = (row = {}) => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td><button type="button" class="btn-ghost user-detail">詳細</button></td>
+            <td class="user-id">${row.id ?? ""}</td>
+            <td><input type="text" value="${row.username ?? ""}" /></td>
+            <td><input type="text" value="${row.password ?? ""}" /></td>
+            <td style="text-align:center;"><button type="button" class="btn-ghost danger">削除</button></td>
+          `;
+          const hiddenWrap = document.createElement('div');
+          hiddenWrap.style.display = 'none';
+          hiddenWrap.innerHTML = userFields
+            .map(f => `<input type="hidden" data-field="${f}" value="${row[f] ?? ""}">`)
+            .join('');
+          tr.appendChild(hiddenWrap);
+
+          tr.querySelector('.user-detail').addEventListener('click', () => openUserModal(tr));
+          tr.querySelector('.btn-ghost.danger').addEventListener('click', () => tr.remove());
+          return tr;
+        };
+
+        const renderUserRows = (data = []) => {
+          userTbody.innerHTML = "";
+          (data.length ? data : [{}]).forEach(d => userTbody.appendChild(createUserRow(d)));
+        };
+
+        userAddBtn.addEventListener('click', () => {
+          userTbody.appendChild(createUserRow({}));
+        });
+
+        userSaveBtn.addEventListener('click', async () => {
+          userShowMessage('', 'success');
+          const rows = Array.from(userTbody.querySelectorAll('tr')).map(tr => {
+            const detailCell = tr.children[0];
+            const idCell = tr.children[1];
+            const userCell = tr.children[2];
+            const passCell = tr.children[3];
+            const hiddenInputs = Array.from(tr.querySelectorAll('input[type="hidden"][data-field]'));
+            const obj = {
+              id: idCell.textContent?.trim() || null,
+              username: userCell.querySelector('input')?.value || "",
+              password: passCell.querySelector('input')?.value || "",
+            };
+            hiddenInputs.forEach(inp => {
+              obj[inp.dataset.field] = inp.value;
+            });
+            return obj;
+          });
+          try {
+            const res = await fetch('/admin/users', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ rows }),
+            });
+            if (!res.ok) throw new Error('保存に失敗しました');
+            userShowMessage('保存しました', 'success');
+          } catch (err) {
+            userShowMessage(err.message || '保存に失敗しました', 'error');
+          }
+        });
+
+        renderUserRows(userData);
+
+        const modal = {
+          container: document.getElementById('user-modal'),
+          fields: {
+            id: document.getElementById('u-id'),
+            username: document.getElementById('u-username'),
+            password: document.getElementById('u-password'),
+            transport_method: document.getElementById('u-transport'),
+            route_origin: document.getElementById('u-route'),
+            saved_search_conditions: document.getElementById('u-saved'),
+            marker_cluster_max_zoom: document.getElementById('u-cluster'),
+            zoom_setting: document.getElementById('u-zoom'),
+            origin_lng: document.getElementById('u-lng'),
+            origin_lat: document.getElementById('u-lat'),
+            nearby_distance_km: document.getElementById('u-nearby'),
+            map_display_type_main: document.getElementById('u-main'),
+            map_display_type_adjust: document.getElementById('u-adjust'),
+            toll_usage: document.getElementById('u-toll'),
+            visit_status: document.getElementById('u-visit'),
+            past_visit_edit: document.getElementById('u-past'),
+          },
+        };
+        let currentUserRow = null;
+
+        const openUserModal = (tr) => {
+          currentUserRow = tr;
+          const idCell = tr.children[1];
+          const userCell = tr.children[2];
+          const passCell = tr.children[3];
+          modal.fields.id.value = idCell.textContent?.trim() || "";
+          modal.fields.username.value = userCell.querySelector('input')?.value || "";
+          modal.fields.password.value = passCell.querySelector('input')?.value || "";
+          const hiddenInputs = Array.from(tr.querySelectorAll('input[type="hidden"][data-field]'));
+          hiddenInputs.forEach(inp => {
+            if (modal.fields[inp.dataset.field]) {
+              modal.fields[inp.dataset.field].value = inp.value || "";
+            }
+          });
+          modal.container.style.display = 'flex';
+        };
+
+        const closeUserModal = () => {
+          modal.container.style.display = 'none';
+          currentUserRow = null;
+        };
+
+        userModalCancel.addEventListener('click', closeUserModal);
+
+        userModalSave.addEventListener('click', () => {
+          if (!currentUserRow) return;
+          const idCell = currentUserRow.children[1];
+          const userCell = currentUserRow.children[2];
+          const passCell = currentUserRow.children[3];
+          idCell.textContent = modal.fields.id.value;
+          userCell.querySelector('input').value = modal.fields.username.value;
+          passCell.querySelector('input').value = modal.fields.password.value;
+
+          const hiddenInputs = Array.from(currentUserRow.querySelectorAll('input[type="hidden"][data-field]'));
+          hiddenInputs.forEach(inp => {
+            const f = inp.dataset.field;
+            if (modal.fields[f]) {
+              inp.value = modal.fields[f].value;
+            }
+          });
+          closeUserModal();
+        });
+
+        modal.container.addEventListener('click', (e) => {
+          if (e.target === modal.container) {
+            closeUserModal();
+          }
+        });
+
+        // expose to detail buttons created later
+        window.openUserModal = openUserModal;
+      }
+    })();
+  </script>
+</body>
+</html>
