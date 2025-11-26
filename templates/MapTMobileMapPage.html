@@ -26,16 +26,17 @@
       top:50px;
       left:0;
       width:100%;
-      height:30px;
+      min-height:30px;
+      max-height:30px;
       overflow:hidden;
-      transition:height 0.3s;
+      transition:max-height 0.2s ease;
       z-index:999;
     }
-    #mapMenu.expanded { height:150px; }
+    #mapMenu.expanded { max-height:220px; }
     #mapMenuHeader { display:flex; align-items:center; padding:0 10px; height:30px; cursor:pointer; }
-    #mapMenuContent { display:none; padding:10px; }
+    #mapMenuContent { display:none; padding:6px 10px 8px; }
     #mapMenu.expanded #mapMenuContent { display:block; }
-    .menu-buttons { display:flex; flex-wrap:wrap; gap:10px; }
+    .menu-buttons { display:flex; flex-wrap:wrap; gap:6px; }
     .mapTButton { padding:5px 10px; background:#eee; border-radius:4px; text-decoration:none; color:#333; }
     #map {
       width:100%;
@@ -269,6 +270,84 @@
       color:#fff;
       border-color:#4caf50;
     }
+    .edit-btn-row { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
+    .edit-primary {
+      padding:8px 12px;
+      border:1px solid #4caf50;
+      background:#4caf50;
+      color:#fff;
+      border-radius:6px;
+      cursor:pointer;
+    }
+    .edit-secondary {
+      padding:8px 12px;
+      border:1px solid #d1d5db;
+      background:#f7f7f7;
+      border-radius:6px;
+      cursor:pointer;
+    }
+    .edit-input {
+      width:100%;
+      padding:6px 8px;
+      border:1px solid #d1d5db;
+      border-radius:4px;
+      box-sizing:border-box;
+      font-size:12px;
+    }
+    .detail-item { padding:8px 10px; border-bottom:1px solid #e5e7eb; }
+    .detail-item:last-child { border-bottom:none; }
+    .detail-item-label { font-weight:bold; font-size:13px; margin-bottom:2px; }
+    .detail-item-value { font-size:13px; }
+    /* Visit register modal */
+    #visitModalOverlay {
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,0.35);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index:1450;
+    }
+    #visitModal {
+      background:#fff;
+      width:340px;
+      max-width:90%;
+      border-radius:8px;
+      box-shadow:0 6px 16px rgba(0,0,0,0.25);
+      padding:16px;
+      box-sizing:border-box;
+      font-family:"Roboto","Noto Sans JP",sans-serif;
+    }
+    #visitModal h3 { margin:0 0 12px; font-size:16px; }
+    .visit-field { margin-bottom:10px; display:flex; flex-direction:column; gap:4px; }
+    .visit-field input {
+      padding:8px;
+      border:1px solid #d1d5db;
+      border-radius:4px;
+      font-size:12px;
+    }
+    .visit-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
+    .visit-actions button {
+      padding:8px 12px;
+      border-radius:4px;
+      border:1px solid #d1d5db;
+      background:#f7f7f7;
+      cursor:pointer;
+    }
+    .visit-actions .primary {
+      background:#4caf50;
+      color:#fff;
+      border-color:#4caf50;
+    }
+    .delete-btn {
+      padding:6px 10px;
+      border:1px solid #d9534f;
+      background:#d9534f;
+      color:#fff;
+      border-radius:4px;
+      cursor:pointer;
+      font-size:12px;
+    }
   </style>
 </head>
 <body>
@@ -334,6 +413,29 @@
         <button class="primary" onclick="executeSearch()">検索実行</button>
         <button onclick="recordSearch()">検索条件の記録</button>
       </div>
+    </div>
+  </div>
+
+  <div id="visitModalOverlay">
+    <div id="visitModal">
+      <h3>訪問登録</h3>
+      <div class="visit-field">
+        <label>訪問名</label>
+        <input type="text" id="visitName" value="訪問" />
+      </div>
+      <div class="visit-field">
+        <label>開始日時</label>
+        <input type="datetime-local" id="visitStart" />
+      </div>
+      <div class="visit-field">
+        <label>終了日時</label>
+        <input type="datetime-local" id="visitEnd" />
+      </div>
+      <div class="visit-actions">
+        <button onclick="closeVisitModal()">キャンセル</button>
+        <button class="primary" onclick="submitVisit()">登録</button>
+      </div>
+      <div id="visitError" style="color:#c00; font-size:12px; min-height:16px;"></div>
     </div>
   </div>
 
@@ -429,6 +531,14 @@
           zIndex: 100,
         });
         marker.addListener('click', () => {
+          const pos = marker.position;
+          if (pos) {
+            const latVal = typeof pos.lat === 'function' ? pos.lat() : pos.lat;
+            const lngVal = typeof pos.lng === 'function' ? pos.lng() : pos.lng;
+            if (latVal != null && lngVal != null) {
+              window.map.setCenter({ lat: latVal, lng: lngVal });
+            }
+          }
           infoWindow.close();
           infoWindow.setContent(renderLoading());
           infoWindow.open({ anchor: marker, map: window.map });
@@ -490,6 +600,10 @@
           }
         });
       }
+      const enterBtn = wrapper.querySelector('.info-enter-btn');
+      if (enterBtn && detail && detail.customer) {
+        enterBtn.addEventListener('click', () => registerImmediateVisit(detail.customer.id));
+      }
       return wrapper;
     }
 
@@ -515,7 +629,7 @@
       return `
         <div style="max-width:260px; padding:8px 10px; font-family:'Noto Sans JP', sans-serif; color:#333;">
           <div style="display:flex; gap:6px; margin-bottom:8px;">
-            <button style="${btnStyle}">入室</button>
+            <button style="${btnStyle}" class="info-enter-btn">入室</button>
             <button style="${btnStyle}" class="info-detail-btn">詳細</button>
             <button style="${btnStyle}">ルート案内</button>
           </div>
@@ -660,11 +774,213 @@
         });
     }
 
+    // --- Detail edit mode ---
+    function enterDetailEditMode() {
+      window.__detailEditMode = true;
+      const body = document.getElementById('detailPanelBody');
+      body.innerHTML = renderDetailPanel(window.__lastDetail);
+      attachEditModeHandlers();
+    }
+
+    function attachEditModeHandlers() {
+      const saveBtn = document.querySelector('.detail-save-btn');
+      const cancelBtn = document.querySelector('.detail-cancel-btn');
+      if (saveBtn) saveBtn.addEventListener('click', saveDetailEdits);
+      if (cancelBtn) cancelBtn.addEventListener('click', cancelDetailEdits);
+    }
+
+    function cancelDetailEdits() {
+      window.__detailEditMode = false;
+      const body = document.getElementById('detailPanelBody');
+      body.innerHTML = renderDetailPanel(window.__lastDetail);
+      const btn = body.querySelector('.visit-register-btn');
+      if (btn) btn.addEventListener('click', () => openVisitModal());
+      const editBtn = body.querySelector('.detail-edit-btn');
+      if (editBtn) editBtn.addEventListener('click', () => enterDetailEditMode());
+    }
+
+    function renderDetailPanelEdit(c, visits) {
+      const visitInputs = (visits || [])
+        .map(
+          (v) => `
+            <div class="detail-section" data-visit-id="${v.id}">
+              <div class="detail-section-title">訪問予定 (ID: ${v.id})</div>
+              <div style="padding:8px; display:flex; flex-direction:column; gap:8px;">
+                <div>
+                  <label style="font-weight:bold;font-size:12px;">訪問予定名</label>
+                  <input class="edit-input visit-name" value="${escapeHtml(v.name || '')}" />
+                </div>
+                <div>
+                  <label style="font-weight:bold;font-size:12px;">訪問結果</label>
+                  <input class="edit-input visit-result" value="${escapeHtml(v.result || '')}" />
+                </div>
+                <div>
+                  <label style="font-weight:bold;font-size:12px;">開始</label>
+                  <input type="datetime-local" class="edit-input visit-start" value="${toLocalInputStr(v.start_at)}" />
+                </div>
+                <div>
+                  <label style="font-weight:bold;font-size:12px;">終了</label>
+                  <input type="datetime-local" class="edit-input visit-end" value="${toLocalInputStr(v.end_at)}" />
+                </div>
+                <div>
+                  <label style="font-weight:bold;font-size:12px;">詳細</label>
+                  <input class="edit-input visit-detail" value="${escapeHtml(v.detail || '')}" />
+                </div>
+                <div style="display:flex; justify-content:flex-end;">
+                  <button class="delete-btn" onclick="deleteVisit(${v.id})">削除</button>
+                </div>
+              </div>
+            </div>
+          `
+        )
+        .join('');
+
+      return `
+        <div>
+          <div class="edit-btn-row">
+            <button class="edit-primary detail-save-btn">保存</button>
+            <button class="edit-secondary detail-cancel-btn">キャンセル</button>
+          </div>
+          <div class="detail-section">
+            <div class="detail-section-title">顧客情報</div>
+            <div style="padding:8px; display:flex; flex-direction:column; gap:8px;">
+              <div>
+                <label style="font-weight:bold;font-size:12px;">顧客名</label>
+                <input class="edit-input cust-name" value="${escapeHtml(c.name || '')}" />
+              </div>
+              <div>
+                <label style="font-weight:bold;font-size:12px;">顧客属性</label>
+                <input class="edit-input cust-segment" value="${escapeHtml(c.segment || '')}" />
+              </div>
+              <div>
+                <label style="font-weight:bold;font-size:12px;">住所</label>
+                <input class="edit-input cust-address" value="${escapeHtml(c.address || '')}" />
+              </div>
+              <div>
+                <label style="font-weight:bold;font-size:12px;">ステータス</label>
+                <input class="edit-input cust-status" value="${escapeHtml(c.visit_status || '')}" />
+              </div>
+            </div>
+          </div>
+          <div>
+            ${visitInputs || '<div style="padding:8px;">訪問予定なし</div>'}
+          </div>
+        </div>
+      `;
+    }
+
+    function toLocalInputStr(value) {
+      if (!value) return '';
+      try {
+        const d = new Date(value);
+        const pad2 = (n) => n.toString().padStart(2, '0');
+        return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+      } catch {
+        return '';
+      }
+    }
+
+    async function saveDetailEdits() {
+      const d = window.__lastDetail;
+      if (!d || !d.customer) return;
+      const body = document.getElementById('detailPanelBody');
+      const custPayload = {
+        name: body.querySelector('.cust-name')?.value || '',
+        address: body.querySelector('.cust-address')?.value || '',
+        latitude: d.customer.latitude,
+        longitude: d.customer.longitude,
+        visit_status: body.querySelector('.cust-status')?.value || '',
+        segment: body.querySelector('.cust-segment')?.value || '',
+      };
+
+      const visitSections = Array.from(body.querySelectorAll('[data-visit-id]'));
+      const visitPayloads = visitSections.map((section) => {
+        const id = section.getAttribute('data-visit-id');
+        return {
+          id,
+          name: section.querySelector('.visit-name')?.value || '',
+          start_at: section.querySelector('.visit-start')?.value || '',
+          end_at: section.querySelector('.visit-end')?.value || '',
+          result: section.querySelector('.visit-result')?.value || '',
+          detail: section.querySelector('.visit-detail')?.value || '',
+        };
+      });
+
+      try {
+        await fetch(`/api/customers/${d.customer.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(custPayload),
+        }).then((res) => {
+          if (!res.ok) throw new Error('顧客情報の保存に失敗しました');
+        });
+        for (const v of visitPayloads) {
+          await fetch(`/api/visits/${v.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: v.name,
+              start_at: v.start_at,
+              end_at: v.end_at,
+              result: v.result,
+              detail: v.detail,
+              customer_id: d.customer.id,
+            }),
+          }).then((res) => {
+            if (!res.ok) throw new Error('訪問予定の保存に失敗しました');
+          });
+        }
+        const newDetail = await fetch(`/api/customers/${d.customer.id}/detail`).then((res) => res.json());
+        window.__lastDetail = newDetail;
+        window.__detailEditMode = false;
+        const updated = renderDetailPanel(newDetail);
+        body.innerHTML = updated;
+        const btn = body.querySelector('.visit-register-btn');
+        if (btn) btn.addEventListener('click', () => openVisitModal());
+        const editBtn = body.querySelector('.detail-edit-btn');
+        if (editBtn) editBtn.addEventListener('click', () => enterDetailEditMode());
+      } catch (err) {
+        console.error(err);
+        alert('保存に失敗しました');
+      }
+    }
+
+    async function deleteVisit(id) {
+      if (!confirm('この訪問予定を削除しますか？')) return;
+      try {
+        await fetch(`/api/visits/${id}`, { method: 'DELETE' }).then((res) => {
+          if (!res.ok) throw new Error('削除に失敗しました');
+        });
+        // Refresh detail
+        const d = window.__lastDetail;
+        if (d && d.customer) {
+          const newDetail = await fetch(`/api/customers/${d.customer.id}/detail`).then((res) => res.json());
+          window.__lastDetail = newDetail;
+          window.__detailEditMode = true; // stay in edit mode after delete
+          const body = document.getElementById('detailPanelBody');
+          body.innerHTML = renderDetailPanel(newDetail);
+          attachEditModeHandlers();
+        }
+      } catch (err) {
+        console.error(err);
+        alert('削除に失敗しました');
+      }
+    }
+
     function showDetailPanel(detail) {
       const overlay = document.getElementById('detailOverlay');
       const body = document.getElementById('detailPanelBody');
+      window.__detailEditMode = false;
       body.innerHTML = renderDetailPanel(detail);
       overlay.classList.add('open');
+      wireDetailButtons(body);
+    }
+
+    function wireDetailButtons(body) {
+      const btn = body.querySelector('.visit-register-btn');
+      if (btn) btn.addEventListener('click', () => openVisitModal());
+      const editBtn = body.querySelector('.detail-edit-btn');
+      if (editBtn) editBtn.addEventListener('click', () => enterDetailEditMode());
     }
 
     function hideDetailPanel() {
@@ -750,29 +1066,142 @@
       alert('検索条件の記録（処理は未実装）');
     }
 
+    // --- Visit modal ---
+    function openVisitModal() {
+      const d = window.__lastDetail;
+      if (!d || !d.customer) {
+        alert('顧客情報がありません');
+        return;
+      }
+      const now = new Date();
+      const plus1h = new Date(now.getTime() + 60 * 60 * 1000);
+      document.getElementById('visitName').value = '訪問';
+      document.getElementById('visitStart').value = toLocalInput(now);
+      document.getElementById('visitEnd').value = toLocalInput(plus1h);
+      document.getElementById('visitError').textContent = '';
+      document.getElementById('visitModalOverlay').style.display = 'flex';
+    }
+    function closeVisitModal() {
+      document.getElementById('visitModalOverlay').style.display = 'none';
+    }
+    function toLocalInput(dateObj) {
+      const pad2 = (n) => n.toString().padStart(2, '0');
+      return `${dateObj.getFullYear()}-${pad2(dateObj.getMonth() + 1)}-${pad2(dateObj.getDate())}T${pad2(dateObj.getHours())}:${pad2(dateObj.getMinutes())}`;
+    }
+    function toIsoString(dateObj) {
+      return dateObj.toISOString();
+    }
+    function submitVisit() {
+      const d = window.__lastDetail;
+      if (!d || !d.customer) {
+        document.getElementById('visitError').textContent = '顧客情報がありません';
+        return;
+      }
+      const name = document.getElementById('visitName').value || '訪問';
+      const start_at = document.getElementById('visitStart').value;
+      const end_at = document.getElementById('visitEnd').value;
+      fetch('/api/visits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          start_at,
+          end_at,
+          customer_id: d.customer.id,
+          result: '',
+          detail: '',
+        }),
+        })
+        .then((res) => {
+          if (!res.ok) throw new Error(`登録に失敗しました (${res.status})`);
+          return res.json();
+        })
+        .then(() => {
+          closeVisitModal();
+          // 最新の顧客詳細を取得して右スライダーをリフレッシュ
+          fetch(`/api/customers/${d.customer.id}/detail`)
+            .then((res) => {
+              if (!res.ok) throw new Error(`詳細取得に失敗しました (${res.status})`);
+              return res.json();
+            })
+            .then((detail) => {
+              window.__lastDetail = detail;
+              const body = document.getElementById('detailPanelBody');
+              body.innerHTML = renderDetailPanel(detail);
+              const btn = body.querySelector('.visit-register-btn');
+              if (btn) btn.addEventListener('click', () => openVisitModal());
+            })
+            .catch((err) => {
+              console.error(err);
+              alert('詳細の更新に失敗しました');
+            });
+          alert('訪問予定を登録しました');
+        })
+        .catch((err) => {
+          console.error(err);
+          document.getElementById('visitError').textContent = '登録に失敗しました';
+        });
+    }
+
+    async function registerImmediateVisit(customerId) {
+      const now = new Date();
+      if (!confirm('訪問予定を登録します。よろしいですか？')) return;
+      try {
+        await fetch('/api/visits', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: '入室',
+            start_at: toIsoString(now),
+            end_at: '',
+            result: '訪問中',
+            detail: '',
+            customer_id: customerId,
+          }),
+        }).then((res) => {
+          if (!res.ok) throw new Error(`登録に失敗しました (${res.status})`);
+          return res.json();
+        });
+        // Refresh detail so panel shows latest visits
+        const newDetail = await fetch(`/api/customers/${customerId}/detail`).then((res) => res.json());
+        window.__lastDetail = newDetail;
+        // If detail panel is open, refresh it
+        const overlay = document.getElementById('detailOverlay');
+        if (overlay.classList.contains('open')) {
+          const body = document.getElementById('detailPanelBody');
+          body.innerHTML = renderDetailPanel(newDetail);
+          wireDetailButtons(body);
+        }
+        alert('訪問予定を登録しました');
+      } catch (err) {
+        console.error(err);
+        alert('訪問予定の登録に失敗しました');
+      }
+    }
+
     function renderDetailPanel(detail) {
       if (!detail || !detail.customer) {
         return '<div>データがありません</div>';
       }
       const c = detail.customer;
       const visits = detail.visits || [];
-      const firstVisit = visits[0];
+      if (window.__detailEditMode) {
+        return renderDetailPanelEdit(c, visits);
+      }
       return `
         <div>
           <div class="detail-btn-row">
             <button class="detail-ghost-btn">訪問入室</button>
-            <button class="detail-ghost-btn">訪問登録</button>
+            <button class="detail-ghost-btn visit-register-btn">訪問登録</button>
             <button class="detail-ghost-btn">ルート案内</button>
-            <button class="detail-ghost-btn">編集</button>
+            <button class="detail-ghost-btn detail-edit-btn">編集</button>
           </div>
           <div class="detail-section">
             <div class="detail-section-title">顧客情報</div>
-            <table class="detail-table">
-              <tr><td class="label">顧客名</td><td>${escapeHtml(c.name || '')}</td></tr>
-              <tr><td class="label">住所</td><td>${escapeHtml(c.address || '')}</td></tr>
-              <tr><td class="label">ステータス</td><td>${escapeHtml(c.visit_status || '')}</td></tr>
-              <tr><td class="label">顧客属性</td><td>${escapeHtml(c.segment || '')}</td></tr>
-            </table>
+            <div class="detail-item"><div class="detail-item-label">顧客名</div><div class="detail-item-value">${escapeHtml(c.name || '')}</div></div>
+            <div class="detail-item"><div class="detail-item-label">住所</div><div class="detail-item-value">${escapeHtml(c.address || '')}</div></div>
+            <div class="detail-item"><div class="detail-item-label">ステータス</div><div class="detail-item-value">${escapeHtml(c.visit_status || '')}</div></div>
+            <div class="detail-item"><div class="detail-item-label">顧客属性</div><div class="detail-item-value">${escapeHtml(c.segment || '')}</div></div>
           </div>
           <div class="detail-section">
             <div class="detail-section-title">訪問予定</div>
@@ -791,13 +1220,13 @@
           const start = formatDt(v.start_at);
           const end = formatDt(v.end_at);
           return `
-            <table class="detail-table" style="margin-bottom:8px;">
-              <tr><td class="label">訪問予定名</td><td>${escapeHtml(v.name || '')}</td></tr>
-              <tr><td class="label">開始/終了</td><td>${start} ～ ${end}</td></tr>
-              <tr><td class="label">状況</td><td>${escapeHtml(customerStatus || '')}</td></tr>
-              <tr><td class="label">訪問結果</td><td>${escapeHtml(v.result || '')}</td></tr>
-              <tr><td class="label">詳細</td><td>${escapeHtml(v.detail || '')}</td></tr>
-            </table>
+            <div class="detail-section" style="margin-bottom:8px;">
+              <div class="detail-item"><div class="detail-item-label">訪問予定名</div><div class="detail-item-value">${escapeHtml(v.name || '')}</div></div>
+              <div class="detail-item"><div class="detail-item-label">開始/終了</div><div class="detail-item-value">${start} ～ ${end}</div></div>
+              <div class="detail-item"><div class="detail-item-label">状況</div><div class="detail-item-value">${escapeHtml(customerStatus || '')}</div></div>
+              <div class="detail-item"><div class="detail-item-label">訪問結果</div><div class="detail-item-value">${escapeHtml(v.result || '')}</div></div>
+              <div class="detail-item"><div class="detail-item-label">詳細</div><div class="detail-item-value">${escapeHtml(v.detail || '')}</div></div>
+            </div>
           `;
         })
         .join('');

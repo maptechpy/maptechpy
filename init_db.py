@@ -23,9 +23,20 @@ def ensure_password_column() -> None:
         conn.execute(text(alter_sql))
 
 
+def ensure_visit_end_nullable() -> None:
+    """Allow end_at to be NULL for visit_schedules."""
+    alter_sql = """
+    ALTER TABLE visit_schedules
+    ALTER COLUMN end_at DROP NOT NULL;
+    """
+    with engine.begin() as conn:
+        conn.execute(text(alter_sql))
+
+
 def init_db(seed: bool = True) -> None:
     Base.metadata.create_all(bind=engine)
     ensure_password_column()
+    ensure_visit_end_nullable()
     if seed:
         seed_if_empty()
 

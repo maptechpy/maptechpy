@@ -50,7 +50,7 @@ class VisitSchedule(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     start_at = Column(DateTime, nullable=False)
-    end_at = Column(DateTime, nullable=False)
+    end_at = Column(DateTime, nullable=True)
     result = Column(String, nullable=True)
     detail = Column(String, nullable=True)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
@@ -167,8 +167,8 @@ class CustomerRead(CustomerCreate):
 
 class VisitCreate(BaseModel):
     name: str
-    start_at: str  # ISO8601
-    end_at: str    # ISO8601
+    start_at: Optional[str] = None  # ISO8601
+    end_at: Optional[str] = None    # ISO8601
     result: Optional[str] = None
     detail: Optional[str] = None
     customer_id: Optional[int] = None
@@ -177,8 +177,8 @@ class VisitCreate(BaseModel):
 class VisitRead(BaseModel):
     id: int
     name: str
-    start_at: str
-    end_at: str
+    start_at: Optional[str] = None
+    end_at: Optional[str] = None
     result: Optional[str] = None
     detail: Optional[str] = None
     customer_id: Optional[int] = None
@@ -197,9 +197,11 @@ class SearchRequest(BaseModel):
 
 
 def _parse_datetime(value: str):
-    """Parse ISO8601 string to datetime; raises HTTP 400 on failure."""
+    """Parse ISO8601 string to datetime; empty/None returns None."""
     from datetime import datetime
 
+    if value in (None, "", "null"):
+        return None
     try:
         return datetime.fromisoformat(value)
     except Exception as exc:  # noqa: BLE001
@@ -267,8 +269,20 @@ def login(username: str = Form(...), password: str = Form(...), db=Depends(get_d
 
 @app.get("/api/markers")
 def list_markers(db=Depends(get_db)):
-    """Return customers as markers for the map."""
-    customers = db.query(Customer).all()
+    """Return customers as markers where there is a visit scheduled to start today."""
+    from datetime import datetime, timedelta
+
+    today = datetime.now().date()
+    start = datetime.combine(today, datetime.min.time())
+    end = start + timedelta(days=1)
+
+    customers = (
+        db.query(Customer)
+        .join(VisitSchedule, VisitSchedule.customer_id == Customer.id)
+        .filter(VisitSchedule.start_at >= start, VisitSchedule.start_at < end)
+        .distinct(Customer.id)
+        .all()
+    )
     return [
         {"id": c.id, "title": c.name, "lat": c.latitude, "lng": c.longitude, "address": c.address}
         for c in customers
@@ -284,6 +298,18 @@ def list_customers(db=Depends(get_db)):
 def create_customer(payload: CustomerCreate, db=Depends(get_db)):
     customer = Customer(**payload.dict())
     db.add(customer)
+    db.commit()
+    db.refresh(customer)
+    return customer
+
+
+@app.put("/api/customers/{customer_id}", response_model=CustomerRead)
+def update_customer(customer_id: int, payload: CustomerCreate, db=Depends(get_db)):
+    customer = db.query(Customer).filter(Customer.id == customer_id).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    for k, v in payload.dict().items():
+        setattr(customer, k, v)
     db.commit()
     db.refresh(customer)
     return customer
@@ -307,7 +333,49 @@ def create_visit(payload: VisitCreate, db=Depends(get_db)):
     db.add(visit)
     db.commit()
     db.refresh(visit)
-    return visit
+    return {
+        "id": visit.id,
+        "name": visit.name,
+        "start_at": visit.start_at.isoformat() if visit.start_at else None,
+        "end_at": visit.end_at.isoformat() if visit.end_at else None,
+        "result": visit.result,
+        "detail": visit.detail,
+        "customer_id": visit.customer_id,
+    }
+
+
+@app.put("/api/visits/{visit_id}", response_model=VisitRead)
+def update_visit(visit_id: int, payload: VisitCreate, db=Depends(get_db)):
+    visit = db.query(VisitSchedule).filter(VisitSchedule.id == visit_id).first()
+    if not visit:
+        raise HTTPException(status_code=404, detail="Visit not found")
+    visit.name = payload.name
+    visit.start_at = _parse_datetime(payload.start_at)
+    visit.end_at = _parse_datetime(payload.end_at)
+    visit.result = payload.result
+    visit.detail = payload.detail
+    visit.customer_id = payload.customer_id
+    db.commit()
+    db.refresh(visit)
+    return {
+        "id": visit.id,
+        "name": visit.name,
+        "start_at": visit.start_at.isoformat() if visit.start_at else None,
+        "end_at": visit.end_at.isoformat() if visit.end_at else None,
+        "result": visit.result,
+        "detail": visit.detail,
+        "customer_id": visit.customer_id,
+    }
+
+
+@app.delete("/api/visits/{visit_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_visit(visit_id: int, db=Depends(get_db)):
+    visit = db.query(VisitSchedule).filter(VisitSchedule.id == visit_id).first()
+    if not visit:
+        raise HTTPException(status_code=404, detail="Visit not found")
+    db.delete(visit)
+    db.commit()
+    return
 
 
 @app.get("/api/search/fields")
