@@ -178,7 +178,7 @@
         <form id="user-modal-form" style="display:grid; gap:10px;">
           <div class="field">
             <label>ID</label>
-            <input id="u-id" type="text" readonly />
+            <input id="u-id" type="text" readonly style="border:none;"/>
           </div>
         <div class="field">
           <label>ユーザー名</label>
@@ -189,16 +189,20 @@
           <input id="u-password" type="text" />
         </div>
         <div class="field">
-          <label>移動手段</label>
-          <select id="u-transport"></select>
+          <label>交通手段</label>
+          <select id="u-transport">
+            <option value="徒歩">徒歩</option>
+            <option value="自転車">自転車</option>
+            <option value="車">車</option>
+          </select>
         </div>
         <div class="field">
-          <label>ルート起点</label>
-          <input id="u-route" type="text" />
-        </div>
-        <div class="field">
-          <label>保存検索条件</label>
-          <input id="u-saved" type="text" />
+          <label>ルート出発地点</label>
+          <select id="u-RouteOrigin">
+            <option value="現在地">現在地</option>
+            <option value="ユーザ設定の座標">ユーザ設定の座標</option>
+            <option value="所属グループの座標">所属グループの座標</option>
+          </select>
         </div>
         <div class="field">
           <label>クラスタ最大ズーム</label>
@@ -206,39 +210,41 @@
         </div>
         <div class="field">
           <label>ズーム設定</label>
-          <select id="u-zoom"></select>
+          <select id="u-zoom">
+            <option value="オートフォーカス">オートフォーカス</option>
+            <option value="現在地中心">現在地中心</option>
+            <option value="前回の作業位置固定">前回の作業位置固定</option>
+          </select>
         </div>
         <div class="field">
-          <label>起点経度</label>
-          <input id="u-lng" type="number" step="0.000001" />
-        </div>
-        <div class="field">
-          <label>起点緯度</label>
-          <input id="u-lat" type="number" step="0.000001" />
-        </div>
-        <div class="field">
-          <label>周辺距離(km)</label>
+          <label>周辺座標取得距離 (Km)</label>
           <input id="u-nearby" type="number" step="0.1" />
         </div>
         <div class="field">
-          <label>メイン表示タイプ</label>
-          <select id="u-main"></select>
+          <label>地図表示形式（訪問）</label>
+          <select id="u-main">
+            <option value="通常表示">通常表示</option>
+            <option value="衛星表示">衛星表示</option>
+            <option value="ハイブリット表示">ハイブリット表示</option>
+            <option value="地形情報表示">地形情報表示</option>
+          </select>
         </div>
         <div class="field">
-          <label>調整表示タイプ</label>
-          <select id="u-adjust"></select>
+          <label>地図表示形式（座標調整）</label>
+          <select id="u-adjust">
+            <option value="通常表示">通常表示</option>
+            <option value="衛星表示">衛星表示</option>
+            <option value="ハイブリット表示">ハイブリット表示</option>
+            <option value="地形情報表示">地形情報表示</option>
+          </select>
         </div>
-        <div class="field">
-          <label>有料道路利用</label>
-          <select id="u-toll"></select>
+        <div class="field" style="flex-direction:row; align-items:center; gap:6px;">
+          <input type="checkbox" id="u-toll" />
+          <label style="margin:0;">有料区間を利用しない</label>
         </div>
-        <div class="field">
-          <label>訪問ステータス</label>
-          <select id="u-visit"></select>
-        </div>
-        <div class="field">
-          <label>過去訪問編集</label>
-          <select id="u-past"></select>
+        <div class="field" style="flex-direction:row; align-items:center; gap:6px;">
+          <input type="checkbox" id="u-past" />
+          <label style="margin:0;">過去訪問編集</label>
         </div>
         </form>
       </div>
@@ -600,17 +606,13 @@
             username: document.getElementById('u-username'),
             password: document.getElementById('u-password'),
             transport_method: document.getElementById('u-transport'),
-            route_origin: document.getElementById('u-route'),
-            saved_search_conditions: document.getElementById('u-saved'),
+            route_origin: document.getElementById('u-RouteOrigin'),
             marker_cluster_max_zoom: document.getElementById('u-cluster'),
             zoom_setting: document.getElementById('u-zoom'),
-            origin_lng: document.getElementById('u-lng'),
-            origin_lat: document.getElementById('u-lat'),
             nearby_distance_km: document.getElementById('u-nearby'),
             map_display_type_main: document.getElementById('u-main'),
             map_display_type_adjust: document.getElementById('u-adjust'),
             toll_usage: document.getElementById('u-toll'),
-            visit_status: document.getElementById('u-visit'),
             past_visit_edit: document.getElementById('u-past'),
           },
         };
